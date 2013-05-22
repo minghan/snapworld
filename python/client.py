@@ -41,7 +41,6 @@ def config(server):
 
     return sconf
 
-config("cmu.edu")
 
 @socket_retry
 def step(server):
