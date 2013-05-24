@@ -43,12 +43,11 @@ def config(server):
 
 
 @socket_retry
-def step(server):
+def step(server, superstep_num):
     # send step start
-    url = "http://%s/step" % (server)
+    url = "http://%s/step?snum=%s" % (server, str(superstep_num))
 
     #print "step", server
-
     f = urllib2.urlopen(url)
     body = f.read()
     f.close()

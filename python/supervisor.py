@@ -51,6 +51,7 @@ class Server(BaseHTTPServer.BaseHTTPRequestHandler):
         message_parts.append('')
         message = '\r\n'.join(message_parts)
 
+        dargs = dict(urlparse.parse_qsl(parsed_path.query))
         subpath = self.path.split("/")
 
         if self.path == "/prepare":
@@ -118,9 +119,13 @@ class Server(BaseHTTPServer.BaseHTTPRequestHandler):
             self.end_headers()
             return
 
-        elif self.path == "/step":
-    
-            logging.info("execute next step")
+        elif "/step" in self.path:
+            
+            # Get superstep number
+            snum = int(dargs.get("snum"))
+            self.snum = snum
+
+            logging.info("executing superstep %d" % snum)
 
             self.send_response(200)
             self.send_header('Content-Length', 0)
@@ -357,7 +362,7 @@ def Execute(args):
         qdir = os.path.join(args.workdir, args.qactname, task)
         tdir = os.path.join(args.workdir, taskdir)
      
-        logging.info("starting task %s, prog %s, workdir %s, qdir %s\n" % (task, prog, tdir, qdir))
+        logging.info("starting at superstep %d, task %s, prog %s, workdir %s, qdir %s\n" % (args.snum, task, prog, tdir, qdir))
              
         # get server information
         host = args.server.host
@@ -397,9 +402,11 @@ def Execute(args):
     while True:
         while task_list and len(procs) < max_tasks:
             task = task_list.pop()
-            timer.start("prog-%d" % pcounter)
+            # Delay execution for each worker.
+            time.sleep(3.0)
+            timer.start("cpu-superstep-%d-prog-%d" % (args.snum, pcounter))
             p, prog = execute_single_task(task)
-            timer.update_extra("prog-%d" % pcounter, "%d, %s" % (p.pid, prog))
+            timer.update_extra("cpu-superstep-%d-prog-%d" % (args.snum, pcounter), "%d, %s" % (p.pid, prog))
             counter_map[p.pid] = pcounter
             pcounter += 1
             procs.append(p)
@@ -411,7 +418,7 @@ def Execute(args):
             logging.debug("polling %d" % pid)
             status = p.poll()
             if status is not None:
-                timer.stop("prog-%d" % counter_map[p.pid])
+                timer.stop("cpu-superstep-%d-prog-%d" % (args.snum, counter_map[p.pid]))
                 del counter_map[p.pid]
 
                 logging.debug("finished %d with status %s" % (pid, str(status)))
@@ -425,8 +432,8 @@ def Execute(args):
  
         if not procs and not task_list:
             break
-        else:
-            time.sleep(1.0)
+        # else:
+        #    time.sleep(1.0)
 
     overall_timer.stop(task_name)
     # send done to master

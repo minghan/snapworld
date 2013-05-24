@@ -179,10 +179,12 @@ class Server(BaseHTTPServer.BaseHTTPRequestHandler):
                     if self.server.snapshot_enabled:
                         cmd = "./snapshot.sh %d" % self.server.snapshot_counter
 
-                        self.server.snapshot_lock.acquire()
-                        self.server.snapshot_counter += 1
-                        self.server.snapshot_lock.release()
+                    # Still record snapshot number to pass to supervisor
+                    self.server.snapshot_lock.acquire()
+                    self.server.snapshot_counter += 1
+                    self.server.snapshot_lock.release()
 
+                    if self.server.snapshot_enabled: 
                         logging.info(cmd)
                         os.system(cmd)
 
@@ -230,8 +232,9 @@ class Server(BaseHTTPServer.BaseHTTPRequestHandler):
 
                     # TODO: create a thread for this step
                     for h in hosts:
-                        logging.info("send next step to " + str(h))
-                        self.StartStep(h)
+                        # TODO(nkhadke): Fix the snapshot counter -> stores total number of reqs (steps*hosts), not steps
+                        logging.info("send next step to %s" % (str(h)))
+                        self.StartStep(h, self.server.snapshot_counter / ready_size)
             return
 
         elif subpath[1] == "error":
@@ -302,9 +305,9 @@ class Server(BaseHTTPServer.BaseHTTPRequestHandler):
 
         return None
 
-    def StartStep(self, host):
+    def StartStep(self, host, snum):
         haddr = "%s:%s" % (host["host"], host["port"])
-        client.step(haddr)
+        client.step(haddr, snum)
 
     def Prepare(self, host):
         haddr = "%s:%s" % (host["host"], host["port"])
