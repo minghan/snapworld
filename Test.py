@@ -1,7 +1,7 @@
 import os
 import sys
 import random
-
+import numpy as np
 
 prime = []
 
@@ -82,6 +82,22 @@ def Run(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange):
     os.system("sleep 5")
     os.system("rake cleanup; rake test")
     os.system("grep \"\[master\]\" /afs/cs.stanford.edu/u/$USER/lfs/$USER/master.log > tmp.txt")
+    fp = "cat /afs/cs.stanford.edu/u/$USER/lfs/$USER/supervisors/9201/execute/supervisor-sh-9201.log | grep sys_stats |"
+    for r in ["cpu_idle", "cpu_user", "cpu_wait", "cpu_inter", "net_transmit", "net_receive", "disk_write", "disk_read"]:
+        sys_cmd = " grep %s | awk '{print $9}' | perl -n -e '/(\d+)\)$/ && print \"$1\n\"' > %s.txt" % (r, r)
+        sys_cmd = fp + sys_cmd
+        print >> sys.stderr, sys_cmd
+        os.system(sys_cmd)
+        arr = []
+        na = None
+        with open('%s.txt' % r) as f:
+            for l in f:
+                arr.append(int(l.strip()))
+        na = np.array(arr)
+        os.system("rm %s.txt" % r)
+        with open('%s.log' % r, 'a') as f:
+            f.write("%f\t%f\t%f\t%f\t%f\n" % (na.min(), na.max(), na.mean(), np.median(na), na.std()))
+            f.flush()
     input = open('tmp.txt', 'r')
     st = ""
     for dat in input:
@@ -107,9 +123,7 @@ if __name__ == '__main__':
         for var_drange in candidate:
             var_gen_tasks = var_node / var_range
             var_stat_tasks = var_node / var_drange
-            if (var_range >= 20000 and var_drange >= 20000):
-                if (num == 1):
-                    print var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange
+            if (var_range >= 20000 and var_drange >= 20000 and var_range <= 1000000 and var_drange <= 1000000):
                 print >> sys.stderr,  var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange
                 GenConfigFile(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange)
                 Run(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange)
