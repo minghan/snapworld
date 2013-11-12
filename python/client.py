@@ -231,14 +231,51 @@ def error(server, src_id, msg):
     body = f.read()
     f.close()
 
+@socket_retry
+def acquire_token(size=-1):
+    broker_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    broker_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    pid = os.getpid()
+    broker_sock.connect(("127.0.0.1", 1344))
+    # broker_sock.connect(("127.0.0.1", 1337))
+    acq_cmd = "acquire|net|%d|%d\n" % (pid, size)
+    broker_sock.send(acq_cmd)
+    rv = broker_sock.recv(1024).strip()
+    if rv == "ACQUIRED":
+        logging.debug("Worker %d acquired token" % pid)
+    else:
+        logging.critical("Error in acquiring token from broker")
+        broker_sock.close()
+        sys.exit(2)
+        broker_sock.close()
+
+@socket_retry
+def release_token():
+    broker_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    broker_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    pid = os.getpid()
+    broker_sock.connect(("127.0.0.1", 1344))
+    # broker_sock.connect(("127.0.0.1", 1337))
+    rel_cmd = "release|net|%d\n" % pid
+    broker_sock.send(rel_cmd)
+    rv = broker_sock.recv(1024).strip()
+    if rv == "RELEASED":
+        logging.debug("Worker %d released token" % pid)
+    else:
+        logging.critical("Error in releasing token to broker")
+        broker_sock.close()
+        sys.exit(2)
+        broker_sock.close()
+
+"""
 def acquire_token(size=-1):
     broker_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     broker_sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     pid = os.getpid()
     try:
         # TODO(nkhadke): Make this dynamic via snapw config file
-        # broker_sock.connect(("127.0.0.1", 1341))
-        broker_sock.connect(("127.0.0.1", 1337))
+        broker_sock.connect(("127.0.0.1", 1344))
+        # broker_sock.connect(("127.0.0.1", 1337))
         acq_cmd = "acquire|net|%d|%d\n" % (pid, size)
 
         broker_sock.send(acq_cmd)
@@ -265,8 +302,8 @@ def release_token():
     pid = os.getpid()
     try:
         # TODO(nkhadke): Make this dynamic via snapw config file
-        # broker_sock.connect(("127.0.0.1", 1341))
-        broker_sock.connect(("127.0.0.1", 1337))
+        broker_sock.connect(("127.0.0.1", 1344))
+        # broker_sock.connect(("127.0.0.1", 1337))
         rel_cmd = "release|net|%d\n" % pid
         broker_sock.send(rel_cmd)
         rv = broker_sock.recv(1024).strip()
@@ -285,3 +322,4 @@ def release_token():
             pass
         sys.exit(2)
 
+"""
