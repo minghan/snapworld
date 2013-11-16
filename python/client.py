@@ -6,27 +6,30 @@ import urllib2
 import urllib
 import logging
 import random
+import traceback
 
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] [%(levelname)s] [%(process)d] [%(filename)s] [%(funcName)s] %(message)s')
 
 Snap = None
 
-MAX_RETRIES = 5
+MAX_RETRIES = 15
 
 def socket_retry(func):
     def inner_func(*args, **kwargs):
         for i in xrange(MAX_RETRIES):
             try:
                 return func(*args, **kwargs)
-            except (socket.error, urllib2.URLError) as e:
+            #except (socket.error, urllib2.URLError) as e:
+            except Exception as e:
                 if i < MAX_RETRIES-1:
                     # Exponential + Random Backoff
-                    wait_time = pow(2.0, i) * (1.0 + random.random()) 
+                    wait_time = pow(1.45, i) * (1.0 + random.random()) 
                     logging.warn("socket_retry; attempt: %d; backoff: %f, msg: %s" % (i, wait_time, str(e)))
+                    logging.warn("%s" % traceback.format_exc())
                     time.sleep(wait_time)
                 else:
                     logging.warn("socket_retry; msg: %s" % str(e))
-
+ 
         logging.error("socket_retry failed")
         sys.exit(2)
     return inner_func
