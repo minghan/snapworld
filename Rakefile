@@ -3,7 +3,7 @@ require 'shellwords'
 
 HOSTNAME = `hostname`.strip()
 USER = ENV['USER']
-HOST_PORT = (`python python/config.py snapw.config master`).strip().split(':')
+HOST_PORT = (`python2.7 python/config.py snapw.config master`).strip().split(':')
 
 HOST = HOST_PORT[0]
 PORT = HOST_PORT[1]
@@ -45,6 +45,8 @@ def task_dsh2(cmd)
 end
 
 def task_start(host, port)
+    print host
+    print port
     sh "curl -i http://#{host}:#{port}/start"
 end
 
@@ -76,7 +78,7 @@ def task_deploy()
     stage_dir = "bin/"
     sh "mkdir -p #{stage_dir}"
 
-    sh "cp -f -p python/* #{stage_dir}"
+    sh "cp -f -p -r python/* #{stage_dir}"
     sh "cp app/libbfs/* app/cppbfs/* #{stage_dir}"
     sh "cp app/pybfs/* #{stage_dir}"
     sh "cp -p ../snap-python/swig-sw/_snap.so ../snap-python/swig-sw/snap.py #{stage_dir}"
@@ -85,7 +87,7 @@ def task_deploy()
 
     Dir.chdir("bin/") do
         sh "mkdir -p #{LFS}"
-        sh "time python master.py 2>&1 | tee #{LFS}/master.log"
+        sh "time python2.7 master.py 2>&1 | tee #{LFS}/master.log"
     end
 end
 
@@ -115,14 +117,14 @@ task :test do
     sh2 "rake cleanup"
     # sh "rm -rf bin/"
     
-    sh2 "rake dshgrep[\"WARNING|ERROR|CRITICAL|traceback\"]"
+    sh2 "rake dshgrep[\"ERROR|CRITICAL|traceback\"]"
     sh2 "rake show_output"
 end
 
 
 task :cleanup do
-    sh "ps x | egrep 'python|node' | grep -v grep | grep -v emacs | grep -v vim | awk '{print $1}'| xargs -r kill -SIGKILL"
-    killcmd_sup = Shellwords.escape("ps x | egrep 'python|node' | egrep -v 'vim|emacs|egrep' | awk '{print \\$1}' | xargs -r kill -SIGKILL")
+    sh "ps x | egrep 'python2.7|node' | grep -v grep | grep -v emacs | grep -v vim | awk '{print $1}'| xargs -r kill -SIGKILL"
+    killcmd_sup = Shellwords.escape("ps x | egrep 'python2.7|node' | egrep -v 'vim|emacs|egrep' | awk '{print \\$1}' | xargs -r kill -SIGKILL")
     task_dsh2(killcmd_sup)
 end
 
@@ -142,7 +144,8 @@ end
 
 task :dshgrep, :txt do |t, args|
     txt = args.txt
-    task_dsh("egrep -I -i --include='*.log' -r '#{txt}' #{LFS}")
+    #    task_dsh("egrep -I -i --include='*.log' -r '#{txt}' #{LFS}")
+    task_dsh("egrep -I  --include='*.log' -r '#{txt}' #{LFS}")
 end
 
 

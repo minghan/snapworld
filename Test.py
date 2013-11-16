@@ -1,7 +1,7 @@
 import os
 import sys
 import random
-import numpy as np
+import time
 
 prime = []
 
@@ -79,11 +79,27 @@ def GenConfigFile(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange
         config.close()
 
 def Run(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange):
-    os.system("sleep 5")
-    os.system("rake cleanup; rake test")
+    os.system("rake cleanup; sleep 5")
+    tb = time.time()
+    os.system("timeout 20000s rake test")
+    td = time.time() - tb
+    print >> sys.stderr, "Took %f s" % td
+    if td > 20000:
+        for r in ["cpu_idle", "cpu_user", "cpu_wait", "cpu_inter", "cpu_system", "net_transmit", "net_receive", "disk_write", "disk_read"]:
+            with open('%s.log' % r, 'a') as f:
+                f.write("TIMEOUT\n")
+                f.flush()
+        with open('test.log', 'a') as o:
+            data = "%d\t%d\t%d\t%d\t%d\t%s" % (var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange, "TIMEOUT")
+            o.write(data + "\n")
+            o.flush()
+        print "TIMEOUT", var_range, var_drange
+        os.system("sleep 5")
+        return
+    # If we don't timeout then continue to record statistics.
     os.system("grep \"\[master\]\" /afs/cs.stanford.edu/u/$USER/lfs/$USER/master.log > tmp.txt")
-    fp = "cat /afs/cs.stanford.edu/u/$USER/lfs/$USER/supervisors/9201/execute/supervisor-sh-9201.log | grep sys_stats |"
-    for r in ["cpu_idle", "cpu_user", "cpu_wait", "cpu_inter", "net_transmit", "net_receive", "disk_write", "disk_read"]:
+    fp = "ssh iln02 cat /afs/cs.stanford.edu/u/$USER/lfs/$USER/supervisors/9200/execute/supervisor-sh-9200.log | grep sys_stats |"
+    for r in ["cpu_idle", "cpu_user", "cpu_wait", "cpu_inter", "cpu_system", "net_transmit", "net_receive", "disk_write", "disk_read"]:
         sys_cmd = " grep %s | awk '{print $9}' | perl -n -e '/(\d+)\)$/ && print \"$1\n\"' > %s.txt" % (r, r)
         sys_cmd = fp + sys_cmd
         print >> sys.stderr, sys_cmd
@@ -93,10 +109,18 @@ def Run(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange):
         with open('%s.txt' % r) as f:
             for l in f:
                 arr.append(int(l.strip()))
-        na = np.array(arr)
+        na = arr
+        proc_arr = []
+        for i, e in enumerate(na):
+            if i == 0:
+                proc_arr.append(0.0)
+            else:
+                proc_arr.append((na[i]-na[i-1])/5.0)
         os.system("rm %s.txt" % r)
         with open('%s.log' % r, 'a') as f:
-            f.write("%f\t%f\t%f\t%f\t%f\n" % (na.min(), na.max(), na.mean(), np.median(na), na.std()))
+            for e in proc_arr:
+                f.write("%f " % e)
+            f.write("\n")
             f.flush()
     input = open('tmp.txt', 'r')
     st = ""
@@ -112,7 +136,6 @@ def Run(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange):
         output.close()
 
 if __name__ == '__main__':
-    num = int(sys.argv[3])
     var_node = int(sys.argv[2])
     prime = GenPrime(var_node)
     GenCandidate(var_node)
@@ -123,7 +146,8 @@ if __name__ == '__main__':
         for var_drange in candidate:
             var_gen_tasks = var_node / var_range
             var_stat_tasks = var_node / var_drange
-            if (var_range >= 20000 and var_drange >= 20000 and var_range <= 1000000 and var_drange <= 1000000):
+            if (var_range <= 1000000 and var_drange <= 1600000):
+                if (var_stat_tasks > 1000 or var_gen_tasks > 1000): continue
                 print >> sys.stderr,  var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange
                 GenConfigFile(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange)
                 Run(var_node, var_range, var_stat_tasks, var_gen_tasks, var_drange)
